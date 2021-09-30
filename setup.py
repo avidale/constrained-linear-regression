@@ -9,7 +9,7 @@ if os.path.exists("README.md"):
 
 setuptools.setup(
     name="constrained_linear_regression",
-    version="0.0.1",
+    version="0.0.2",
     author="David Dale",
     author_email="dale.david@mail.ru",
     description=description,
