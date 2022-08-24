@@ -1,7 +1,7 @@
 try:
-    from sklearn.linear_model._base import LinearModel
+    from sklearn.linear_model._base import LinearModel, _preprocess_data
 except ImportError:
-    from sklearn.linear_model.base import LinearModel
+    from sklearn.linear_model.base import LinearModel, _preprocess_data
 from sklearn.base import RegressorMixin
 from sklearn.utils import check_X_y
 import numpy as np
@@ -32,8 +32,13 @@ class ConstrainedLinearRegression(LinearModel, RegressorMixin):
 
     def fit(self, X, y, min_coef=None, max_coef=None):
         X, y = check_X_y(X, y, accept_sparse=['csr', 'csc', 'coo'], y_numeric=True, multi_output=False)
-        X, y, X_offset, y_offset, X_scale = self._preprocess_data(
-            X, y, fit_intercept=self.fit_intercept, normalize=self.normalize, copy=self.copy_X)
+        X, y, X_offset, y_offset, X_scale = _preprocess_data(
+            X,
+            y,
+            fit_intercept=self.fit_intercept,
+            normalize=self.normalize,
+            copy=self.copy_X,
+        )
         self.min_coef_ = min_coef if min_coef is not None else np.repeat(-np.inf, X.shape[1])
         self.max_coef_ = max_coef if max_coef is not None else np.repeat(np.inf, X.shape[1])
         if self.nonnegative:

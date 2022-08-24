@@ -9,7 +9,7 @@ if os.path.exists("README.md"):
 
 setuptools.setup(
     name="constrained_linear_regression",
-    version="0.0.3",
+    version="0.0.4",
     author="David Dale",
     author_email="dale.david@mail.ru",
     description=description,
@@ -25,7 +25,7 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
-        'scikit-learn',
+        'scikit-learn<=1.1',
         'numpy',
     ],
 )
