@@ -100,7 +100,7 @@ class MatrixConstrainedLinearRegression(LinearModel, RegressorMixin):
             accept_sparse=['csr', 'csc', 'coo'],
             y_numeric=True, multi_output=False
         )
-        X, y, X_offset, y_offset, X_scale = self._preprocess_data(
+        X, y, X_offset, y_offset, X_scale = _preprocess_data(
             X, y,
             fit_intercept=self.fit_intercept,
             normalize=self.normalize,
