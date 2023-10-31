@@ -85,6 +85,44 @@ class ConstrainedLinearRegression(LinearModel, RegressorMixin):
 
 
 class MultiConstrainedLinearRegression(ConstrainedLinearRegression):
+    """
+    This class implementation extends the ConstrainedLinearRegression class to handle multiple constraints.
+
+    Parameters
+    ----------
+    fit_intercept : bool, default=True
+        Whether or not to calculate the intercept for this model.
+
+    normalize : bool, default=False
+        This parameter is ignored when fit_intercept is set to False. 
+        If True, the regressors X will be normalized before regression by subtracting the mean and dividing by the l2-norm.
+
+    copy_X : bool, default=True
+        If True, X will be copied; else, it may be overwritten.
+
+    nonnegative : bool, default=False
+        When set to True, forces the coefficients to be positive.
+
+    ridge : float, default=0
+        When set to a float value, adds RIDGE regularization to the model, with the supplied alpha.
+
+    lasso : float, default=0
+        When set to a float value, adds LASSO regularization to the model, with the supplied alpha.
+
+    tol : float, default=1e-15
+        The tolerance for the optimization.
+
+    learning_rate : float, default=1.0
+        The learning rate for the optimization.
+
+    max_iter : int, default=10000
+        The maximum number of iterations for the optimization algorithm.
+
+    Methods
+    --------
+    fit(X, y, horizon, min_coef=None, max_coef=None, initial_beta=None):
+        Fits the model according to the given training data.
+    """
     global_horizon_count = 0
     
     def __init__(
