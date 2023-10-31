@@ -30,7 +30,7 @@ class ConstrainedLinearRegression(LinearModel, RegressorMixin):
         self.learning_rate = learning_rate
         self.max_iter = max_iter
 
-    def fit(self, X, y, min_coef=None, max_coef=None):
+    def fit(self, X, y, min_coef=None, max_coef=None, initial_beta=None):
         X, y = check_X_y(X, y, accept_sparse=['csr', 'csc', 'coo'], y_numeric=True, multi_output=False)
         X, y, X_offset, y_offset, X_scale = _preprocess_data(
             X,
@@ -44,7 +44,13 @@ class ConstrainedLinearRegression(LinearModel, RegressorMixin):
         if self.nonnegative:
             self.min_coef_ = np.clip(self.min_coef_, 0, None)
 
-        beta = np.zeros(X.shape[1]).astype(float)
+        if initial_beta is not None:
+            # providing initial_beta may be useful,
+            # if initial solution does not respect the constraints.
+            beta = initial_beta
+        else:
+            beta = np.zeros(X.shape[1]).astype(float)
+
         prev_beta = beta + 1
         hessian = np.dot(X.transpose(), X)
         if self.ridge:
