@@ -250,7 +250,6 @@ class MultiConstrainedLinearRegression(ConstrainedLinearRegression):
             
         grad = np.dot(np.dot(X, beta) - y, X) 
         grad += progress * self.penalty_rate * self.calc_distance_out_of_bounds(beta, i)
-        # grad[i] += progress * penalty_rate * self.calc_distance_out_of_bounds(beta, i)
         
         if self.ridge:
             grad += beta * self.ridge
