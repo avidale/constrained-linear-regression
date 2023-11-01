@@ -135,11 +135,13 @@ class MultiConstrainedLinearRegression(ConstrainedLinearRegression):
             lasso=0,
             tol=1e-15,
             learning_rate=1.0,
-            max_iter=10000
+            max_iter=10000,
+            penalty_rate=0
     ):
         super().__init__(fit_intercept, normalize, copy_X, nonnegative, ridge, lasso, tol, learning_rate, max_iter)
+        self.penalty_rate = penalty_rate
 
-    def fit(self, X, y, horizon, min_coef=None, max_coef=None, initial_beta=None, penalty_rate=0):
+    def fit(self, X, y, horizon, min_coef=None, max_coef=None, initial_beta=None):
         X, y = check_X_y(X, y, accept_sparse=['csr', 'csc', 'coo'], y_numeric=True, multi_output=False)
         X, y, X_offset, y_offset, X_scale = _preprocess_data(
             X,
@@ -174,8 +176,8 @@ class MultiConstrainedLinearRegression(ConstrainedLinearRegression):
             step += 1
             prev_beta = beta.copy()
             for i in range(len(beta)):
-                if penalty_rate:
-                    beta[i] = self.update_beta_penalty(beta, i, X, y, hessian, loss_scale, step/self.max_iter, penalty_rate)
+                if self.penalty_rate:
+                    beta[i] = self.update_beta_penalty(beta, i, X, y, hessian, loss_scale, step/self.max_iter)
                 else:
                     beta[i] = self.update_beta_clip(beta, i, X, y, hessian, loss_scale)
 
@@ -222,7 +224,7 @@ class MultiConstrainedLinearRegression(ConstrainedLinearRegression):
                 new_value = new_value2
         return np.clip(new_value, self.min_coef_[MultiConstrainedLinearRegression.global_horizon_count][i], self.max_coef_[MultiConstrainedLinearRegression.global_horizon_count][i])
     
-    def update_beta_penalty(self, beta, i, X, y, hessian, loss_scale, progress, penalty_rate=0.01):
+    def update_beta_penalty(self, beta, i, X, y, hessian, loss_scale, progress):
         """
         This function updates the beta parameters with a penalty term if beta is out-of-range.
 
@@ -233,7 +235,6 @@ class MultiConstrainedLinearRegression(ConstrainedLinearRegression):
         :param hessian: 2D numpy array, Hessian matrix for the current parametrization of the model
         :param loss_scale: scalar, factor to rescale the loss function
         :param progress: scalar, progress of iteration to increase the penalty over iteration
-        :param penalty_rate: scalar, rate of penalty term in loss function
         :return: new value for beta[i]
 
         The function first computes the gradient of the loss function, then adds an extra penalty term to it if beta[i] 
@@ -248,7 +249,7 @@ class MultiConstrainedLinearRegression(ConstrainedLinearRegression):
         """
             
         grad = np.dot(np.dot(X, beta) - y, X) 
-        grad += progress * penalty_rate * self.calc_distance_out_of_bounds(beta, i)
+        grad += progress * self.penalty_rate * self.calc_distance_out_of_bounds(beta, i)
         # grad[i] += progress * penalty_rate * self.calc_distance_out_of_bounds(beta, i)
         
         if self.ridge:
