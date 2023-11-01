@@ -139,7 +139,7 @@ class MultiConstrainedLinearRegression(ConstrainedLinearRegression):
     ):
         super().__init__(fit_intercept, normalize, copy_X, nonnegative, ridge, lasso, tol, learning_rate, max_iter)
 
-    def fit(self, X, y, horizon, min_coef=None, max_coef=None, initial_beta=None):
+    def fit(self, X, y, horizon, min_coef=None, max_coef=None, initial_beta=None, penalty_rate=0):
         X, y = check_X_y(X, y, accept_sparse=['csr', 'csc', 'coo'], y_numeric=True, multi_output=False)
         X, y, X_offset, y_offset, X_scale = _preprocess_data(
             X,
@@ -174,25 +174,104 @@ class MultiConstrainedLinearRegression(ConstrainedLinearRegression):
             step += 1
             prev_beta = beta.copy()
             for i in range(len(beta)):
-                grad = np.dot(np.dot(X, beta) - y, X)
-                if self.ridge:
-                    grad += beta * self.ridge
-                prev_value = beta[i]
-                new_value = beta[i] - grad[i] / hessian[i,i] * self.learning_rate
-                if self.lasso:
-                    #
-                    new_value2 = beta[i] - (grad[i] + np.sign(prev_value or new_value) * self.lasso * loss_scale) / hessian[i,i] * self.learning_rate
-                    if new_value2 * new_value < 0:
-                        new_value = 0
-                    else:
-                        new_value = new_value2
-                beta[i] = np.clip(new_value, self.min_coef_[MultiConstrainedLinearRegression.global_horizon_count][i], self.max_coef_[MultiConstrainedLinearRegression.global_horizon_count][i])
+                if penalty_rate:
+                    beta[i] = self.update_beta_penalty(beta, i, X, y, hessian, loss_scale, step/self.max_iter, penalty_rate)
+                else:
+                    beta[i] = self.update_beta_clip(beta, i, X, y, hessian, loss_scale)
 
         self.coef_ = beta
         self._set_intercept(X_offset, y_offset, X_scale)
+        
+        # Goes to the next multi-level model
         MultiConstrainedLinearRegression.global_horizon_count += 1
         return self
+    
+    def reset(self):
+        MultiConstrainedLinearRegression.global_horizon_count = 0
+        return f"global_horizon_count: {MultiConstrainedLinearRegression.global_horizon_count}"
 
+    def update_beta_clip(self, beta, i, X, y, hessian, loss_scale):
+        """
+        This function updates the beta parameters with clipping to handle out-of-range beta values.
+
+        :param beta: 1D numpy array, coefficients of the linear regression model
+        :param i: int, index for the beta parameter to update
+        :param X: 2D numpy array, input data for the linear model
+        :param y: 1D numpy array, output data for the linear model
+        :param hessian: 2D numpy array, Hessian matrix for the current parametrization of the model
+        :param loss_scale: scalar, factor to rescale the loss function
+        :return: new value for beta[i]
+
+        The function first computes the gradient of the loss function. Then it performs one step of gradient descent 
+        to estimate a new value for beta[i]. If specified, the function also applies lasso regularization.
+
+        Finally, unlike the 'update_beta_penalty' function, this function enforces the constraints passively by simply 
+        clipping the value of beta[i] so it remains within its specified range of values. This represents a simpler, 
+        but sometimes less precise, way of imposing constraints on the model parameters.
+        """
+        grad = np.dot(np.dot(X, beta) - y, X)
+        if self.ridge:
+            grad += beta * self.ridge
+        prev_value = beta[i]
+        new_value = beta[i] - grad[i] / hessian[i,i] * self.learning_rate
+        if self.lasso:
+            new_value2 = beta[i] - (grad[i] + np.sign(prev_value or new_value) * self.lasso * loss_scale) / hessian[i,i] * self.learning_rate
+            if new_value2 * new_value < 0:
+                new_value = 0
+            else:
+                new_value = new_value2
+        return np.clip(new_value, self.min_coef_[MultiConstrainedLinearRegression.global_horizon_count][i], self.max_coef_[MultiConstrainedLinearRegression.global_horizon_count][i])
+    
+    def update_beta_penalty(self, beta, i, X, y, hessian, loss_scale, progress, penalty_rate=0.01):
+        """
+        This function updates the beta parameters with a penalty term if beta is out-of-range.
+
+        :param beta: 1D numpy array, coefficients of the linear regression model
+        :param i: int, index for the beta parameter to update
+        :param X: 2D numpy array, input data for the linear model
+        :param y: 1D numpy array, output data for the linear model
+        :param hessian: 2D numpy array, Hessian matrix for the current parametrization of the model
+        :param loss_scale: scalar, factor to rescale the loss function
+        :param progress: scalar, progress of iteration to increase the penalty over iteration
+        :param penalty_rate: scalar, rate of penalty term in loss function
+        :return: new value for beta[i]
+
+        The function first computes the gradient of the loss function, then adds an extra penalty term to it if beta[i] 
+        is below/above the specified minimum/maximum coefficients. 
+
+        Next, it performs one step of gradient descent to estimate a new value for beta[i], and finally, applies lasso 
+        regularization if specified.
+
+        Unlike other implementations that may clip the values of beta[i] to enforce constraints, this function incorporates
+        the constraints into the optimization process itself by using penalty terms. In other words, it actively "discourages"
+        the model from choosing out-of-range beta values instead of passively enforcing them by clipping.
+        """
+            
+        grad = np.dot(np.dot(X, beta) - y, X) 
+        grad += progress * penalty_rate * self.calc_distance_out_of_bounds(beta, i)
+        # grad[i] += progress * penalty_rate * self.calc_distance_out_of_bounds(beta, i)
+        
+        if self.ridge:
+            grad += beta * self.ridge
+        prev_value = beta[i]
+        new_value = beta[i] - grad[i] / hessian[i,i] * self.learning_rate
+        if self.lasso:
+            new_value2 = beta[i] - (grad[i] + np.sign(prev_value or new_value) * self.lasso * loss_scale) / hessian[i,i] * self.learning_rate
+            if new_value2 * new_value < 0:
+                new_value = 0
+            else:
+                new_value = new_value2
+        return new_value
+
+    def calc_distance_out_of_bounds(self, beta, i):
+        min_bound = self.min_coef_[MultiConstrainedLinearRegression.global_horizon_count][i]
+        max_bound = self.max_coef_[MultiConstrainedLinearRegression.global_horizon_count][i]
+        if beta[i] < min_bound:
+            return beta[i] - min_bound
+        elif beta[i] > max_bound:
+            return beta[i] - max_bound
+        else:
+            return 0
 
 class MatrixConstrainedLinearRegression(LinearModel, RegressorMixin):
     """
