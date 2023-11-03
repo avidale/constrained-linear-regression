@@ -12,7 +12,7 @@ Here's an example using dummy data:
 ```Python
 import numpy as np
 import pandas as pd
-from constrained_linear_regression import MultiConstrainedLinearRegression
+from constrained_linear_regression.multi_constrained_linear_regression import MultiConstrainedLinearRegression
 from darts.models import RegressionModel
 from darts.timeseries import TimeSeries
 from darts.dataprocessing.transformers import Scaler
@@ -70,7 +70,7 @@ max_coef[2:,1] = 0
 max_coef[:,6] = 0 # ignore the last
 ```
 ```Python
-model.fit(series_target, past_covariates=series_feature, horizon=horizon, min_coef=min_coef, max_coef=max_coef, penalty_rate=0)
+model.fit(series_target, past_covariates=series_feature, min_coef=min_coef, max_coef=max_coef)
 model.model.estimator.reset() # Reset global variable between multi_models
 
 # Predict the next 14 days, using the past 14 days.
