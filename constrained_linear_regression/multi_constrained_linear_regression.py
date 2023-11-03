@@ -1,54 +1,75 @@
-try:
-    from sklearn.linear_model._base import LinearModel, _preprocess_data
-except ImportError:
-    from sklearn.linear_model.base import LinearModel, _preprocess_data
-
-from .constrained_linear_regression import ConstrainedLinearRegression
-from sklearn.utils import check_X_y
 import numpy as np
+from .constrained_linear_regression import ConstrainedLinearRegression
 
 
 class MultiConstrainedLinearRegression(ConstrainedLinearRegression):
     """
     This class implementation extends the ConstrainedLinearRegression class to handle multiple constraints.
 
-    Parameters
+    Attributes
     ----------
-    fit_intercept : bool, default=True
-        Whether or not to calculate the intercept for this model.
-
-    normalize : bool, default=False
-        This parameter is ignored when fit_intercept is set to False.
-        If True, the regressors X will be normalized before regression by subtracting the mean and dividing by the l2-norm.
-
-    copy_X : bool, default=True
-        If True, X will be copied; else, it may be overwritten.
-
-    nonnegative : bool, default=False
-        When set to True, forces the coefficients to be positive.
-
-    ridge : float, default=0
-        When set to a float value, adds RIDGE regularization to the model, with the supplied alpha.
-
-    lasso : float, default=0
-        When set to a float value, adds LASSO regularization to the model, with the supplied alpha.
-
-    tol : float, default=1e-15
-        The tolerance for the optimization.
-
-    learning_rate : float, default=1.0
-        The learning rate for the optimization.
-
-    max_iter : int, default=10000
-        The maximum number of iterations for the optimization algorithm.
+    global_horizon_count : int
+        Static/class-level attribute used to keep track of the number of constraints across multiple levels/horizons.
 
     Methods
     --------
-    fit(X, y, horizon, min_coef=None, max_coef=None, initial_beta=None):
-        Fits the model according to the given training data.
+    fit(self, X, y, min_coef=None, max_coef=None, initial_beta=None)
+        Fit MultiConstrainedLinearRegression model to the given data.
+
+    Parameters
+    ----------
+    X : array-like
+        The input samples.
+
+    y : array-like
+        The target values.
+
+    min_coef : array-like, default=None
+        The minimum constraint for the coefficient. It's optional and default value is None
+
+    max_coef : array-like
+        The maximum constraint for the coefficient. It's optional and default value is None
+
+    initial_beta : array-like
+        Initial coefficients for starting the optimization process. It's optional and default value is None
+
+    fit_intercept : bool, default=True
+        Option to fit intercept.
+
+    normalize : bool, default=False
+        Option to normalize the data.
+
+    copy_X : bool, default=True
+        Option to copy X.
+
+    nonnegative : bool, default=False
+        Option to make sure coefficients are non-negative.
+
+    ridge : int, default=0
+        Regularization factor for ridge regression.
+
+    lasso : int, default=0
+        Regularization factor for lasso regression.
+
+    tol : float, default=1e-15
+        Tolerance for the stopping criterion.
+
+    learning_rate : float, default=1.0
+        Learning rate for the update rule.
+
+    max_iter : int, default=10000
+        Maximum number of iterations for the algorithm.
+
+    penalty_rate : float, default=0
+        Penalty rate applied to the coefficients.
+
+    Return
+    -------
+    self : object
+        Returns the instance itself.
     """
 
-    global_horizon_count = 0
+    global_horizon_count = 0  # Class attribute shared by all instances
 
     def __init__(
         self,
@@ -77,173 +98,66 @@ class MultiConstrainedLinearRegression(ConstrainedLinearRegression):
         self.penalty_rate = penalty_rate
 
     def fit(self, X, y, min_coef=None, max_coef=None, initial_beta=None):
-        X, y = check_X_y(
-            X,
-            y,
-            accept_sparse=["csr", "csc", "coo"],
-            y_numeric=True,
-            multi_output=False,
-        )
-        X, y, X_offset, y_offset, X_scale = _preprocess_data(
-            X,
-            y,
-            fit_intercept=self.fit_intercept,
-            normalize=self.normalize,
-            copy=self.copy_X,
-        )
-        self.min_coef_ = (
-            min_coef
-            if min_coef is not None
-            else np.ones(
-                (MultiConstrainedLinearRegression.global_horizon_count, X.shape[1])
-            )
-            * -np.inf
-        )
-        self.max_coef_ = (
-            max_coef
-            if max_coef is not None
-            else np.ones(
-                (MultiConstrainedLinearRegression.global_horizon_count, X.shape[1])
-            )
-            * np.inf
-        )
-        if self.nonnegative:
-            self.min_coef_ = np.clip(self.min_coef_, 0, None)
+        X, y, X_offset, y_offset, X_scale = self.preprocess(X, y)
+        feature_count = X.shape[-1]
+        min_coef_ = self._verify_coef(feature_count, min_coef, -np.inf, MultiConstrainedLinearRegression.global_horizon_count)
+        max_coef_ = self._verify_coef(feature_count, max_coef, np.inf, MultiConstrainedLinearRegression.global_horizon_count)
 
-        if initial_beta is not None:
-            # providing initial_beta may be useful,
-            # if initial solution does not respect the constraints.
-            beta = initial_beta
-        else:
-            beta = np.zeros(X.shape[1]).astype(float)
+        beta = self._verify_initial_beta(feature_count, initial_beta)
+            
+        if self.nonnegative:
+            min_coef_ = np.clip(min_coef_, 0, None)
+
 
         prev_beta = beta + 1
-        hessian = np.dot(X.transpose(), X)
-        if self.ridge:
-            hessian += np.eye(X.shape[1]) * self.ridge
-
+        hessian = self._calculate_hessian(X)
         loss_scale = len(y)
+
+        # Custom fit implementation starts from here
         step = 0
         while not (np.abs(prev_beta - beta) < self.tol).all():
             if step > self.max_iter:
                 print("THE MODEL DID NOT CONVERGE")
                 break
+            
             step += 1
             prev_beta = beta.copy()
-            for i in range(len(beta)):
+
+            for i, _ in enumerate(beta):
+                grad = self._calculate_gradient(X, beta, y)
                 if self.penalty_rate:
-                    beta[i] = self.update_beta_penalty(
-                        beta, i, X, y, hessian, loss_scale, step / self.max_iter
+                    progress = step / self.max_iter
+                    grad += (
+                        progress
+                        * self.penalty_rate
+                        * self._calc_distance_out_of_bounds(
+                            beta, i, min_coef_, max_coef_
+                        )
                     )
-                else:
-                    beta[i] = self.update_beta_clip(beta, i, X, y, hessian, loss_scale)
+                
+                beta[i] = self._update_beta(
+                    beta, i, grad, hessian, loss_scale, min_coef[MultiConstrainedLinearRegression.global_horizon_count], max_coef[MultiConstrainedLinearRegression.global_horizon_count]
+                )
 
-        self.coef_ = beta
+        self._set_coef(beta)
         self._set_intercept(X_offset, y_offset, X_scale)
-
-        # Goes to the next multi-level model
+        
+        # Update horizon_count for the next model
         MultiConstrainedLinearRegression.global_horizon_count += 1
+
         return self
 
-    def reset(self):
-        MultiConstrainedLinearRegression.global_horizon_count = 0
-        return f"global_horizon_count: {MultiConstrainedLinearRegression.global_horizon_count}"
 
-    def update_beta_clip(self, beta, i, X, y, hessian, loss_scale):
-        """
-        This function updates the beta parameters with clipping to handle out-of-range beta values.
-
-        :param beta: 1D numpy array, coefficients of the linear regression model
-        :param i: int, index for the beta parameter to update
-        :param X: 2D numpy array, input data for the linear model
-        :param y: 1D numpy array, output data for the linear model
-        :param hessian: 2D numpy array, Hessian matrix for the current parametrization of the model
-        :param loss_scale: scalar, factor to rescale the loss function
-        :return: new value for beta[i]
-
-        The function first computes the gradient of the loss function. Then it performs one step of gradient descent
-        to estimate a new value for beta[i]. If specified, the function also applies lasso regularization.
-
-        Finally, unlike the 'update_beta_penalty' function, this function enforces the constraints passively by simply
-        clipping the value of beta[i] so it remains within its specified range of values. This represents a simpler,
-        but sometimes less precise, way of imposing constraints on the model parameters.
-        """
-        grad = np.dot(np.dot(X, beta) - y, X)
-        if self.ridge:
-            grad += beta * self.ridge
-        prev_value = beta[i]
-        new_value = beta[i] - grad[i] / hessian[i, i] * self.learning_rate
-        if self.lasso:
-            new_value2 = (
-                beta[i]
-                - (grad[i] + np.sign(prev_value or new_value) * self.lasso * loss_scale)
-                / hessian[i, i]
-                * self.learning_rate
-            )
-            if new_value2 * new_value < 0:
-                new_value = 0
-            else:
-                new_value = new_value2
-        return np.clip(
-            new_value,
-            self.min_coef_[MultiConstrainedLinearRegression.global_horizon_count][i],
-            self.max_coef_[MultiConstrainedLinearRegression.global_horizon_count][i],
-        )
-
-    def update_beta_penalty(self, beta, i, X, y, hessian, loss_scale, progress):
-        """
-        This function updates the beta parameters with a penalty term if beta is out-of-range.
-
-        :param beta: 1D numpy array, coefficients of the linear regression model
-        :param i: int, index for the beta parameter to update
-        :param X: 2D numpy array, input data for the linear model
-        :param y: 1D numpy array, output data for the linear model
-        :param hessian: 2D numpy array, Hessian matrix for the current parametrization of the model
-        :param loss_scale: scalar, factor to rescale the loss function
-        :param progress: scalar, progress of iteration to increase the penalty over iteration
-        :return: new value for beta[i]
-
-        The function first computes the gradient of the loss function, then adds an extra penalty term to it if beta[i]
-        is below/above the specified minimum/maximum coefficients.
-
-        Next, it performs one step of gradient descent to estimate a new value for beta[i], and finally, applies lasso
-        regularization if specified.
-
-        Unlike other implementations that may clip the values of beta[i] to enforce constraints, this function incorporates
-        the constraints into the optimization process itself by using penalty terms. In other words, it actively "discourages"
-        the model from choosing out-of-range beta values instead of passively enforcing them by clipping.
-        """
-
-        grad = np.dot(np.dot(X, beta) - y, X)
-        grad += progress * self.penalty_rate * self.calc_distance_out_of_bounds(beta, i)
-
-        if self.ridge:
-            grad += beta * self.ridge
-        prev_value = beta[i]
-        new_value = beta[i] - grad[i] / hessian[i, i] * self.learning_rate
-        if self.lasso:
-            new_value2 = (
-                beta[i]
-                - (grad[i] + np.sign(prev_value or new_value) * self.lasso * loss_scale)
-                / hessian[i, i]
-                * self.learning_rate
-            )
-            if new_value2 * new_value < 0:
-                new_value = 0
-            else:
-                new_value = new_value2
-        return new_value
-
-    def calc_distance_out_of_bounds(self, beta, i):
-        min_bound = self.min_coef_[
-            MultiConstrainedLinearRegression.global_horizon_count
-        ][i]
-        max_bound = self.max_coef_[
-            MultiConstrainedLinearRegression.global_horizon_count
-        ][i]
+    def _calc_distance_out_of_bounds(self, beta, i, min_coef_, max_coef_):
+        min_bound = min_coef_[MultiConstrainedLinearRegression.global_horizon_count][i]
+        max_bound = max_coef_[MultiConstrainedLinearRegression.global_horizon_count][i]
         if beta[i] < min_bound:
             return beta[i] - min_bound
         elif beta[i] > max_bound:
             return beta[i] - max_bound
         else:
             return 0
+
+    def reset(self):
+        MultiConstrainedLinearRegression.global_horizon_count = 0
+        return f"horizon_count: {MultiConstrainedLinearRegression.global_horizon_count}"
