@@ -1,7 +1,6 @@
 name: Check style and run tests
 
-on:
-  push
+on: [push, pull_request]
 
 jobs:
   test:
