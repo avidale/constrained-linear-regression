@@ -17,9 +17,9 @@ jobs:
         pip install pycodestyle pytest scikit-learn scipy smart_open[http]
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         python setup.py develop
-#    - name: Lint with flake8
-#      run: |
-#        pycodestyle  . --max-line-length=127
+    - name: Lint with flake8
+      run: |
+        pycodestyle  . --max-line-length=127
     - name: Test with pytest
       run: |
         pytest

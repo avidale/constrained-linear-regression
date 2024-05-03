@@ -1,5 +1,5 @@
 import numpy as np
-from constrained_linear_regression.constrained_linear_regression import ConstrainedLinearRegression
+from constrained_linear_regression import ConstrainedLinearRegression
 from sklearn.datasets import load_linnerud
 from sklearn.linear_model import LinearRegression
 

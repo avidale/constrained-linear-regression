@@ -44,9 +44,9 @@ class BaseConstrainedLinearRegression(LinearModel, RegressorMixin):
             y,
             fit_intercept=self.fit_intercept,
             normalize=self.normalize,
-            copy=self.copy_X
+            copy=self.copy_X,
         )
-        
+
     def _verify_coef(self, feature_count, coef, value, idx=0):
         if coef is not None:
             coef_ = coef
@@ -56,7 +56,7 @@ class BaseConstrainedLinearRegression(LinearModel, RegressorMixin):
         else:
             coef_ = np.ones((idx + 1, feature_count)) * value
         return coef_
-    
+
     def _verify_initial_beta(self, feature_count, initial_beta):
         if initial_beta is not None:
             beta = initial_beta

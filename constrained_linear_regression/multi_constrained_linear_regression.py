@@ -100,14 +100,23 @@ class MultiConstrainedLinearRegression(ConstrainedLinearRegression):
     def fit(self, X, y, min_coef=None, max_coef=None, initial_beta=None):
         X, y, X_offset, y_offset, X_scale = self.preprocess(X, y)
         feature_count = X.shape[-1]
-        min_coef_ = self._verify_coef(feature_count, min_coef, -np.inf, MultiConstrainedLinearRegression.global_horizon_count)
-        max_coef_ = self._verify_coef(feature_count, max_coef, np.inf, MultiConstrainedLinearRegression.global_horizon_count)
+        min_coef_ = self._verify_coef(
+            feature_count,
+            min_coef,
+            -np.inf,
+            MultiConstrainedLinearRegression.global_horizon_count,
+        )
+        max_coef_ = self._verify_coef(
+            feature_count,
+            max_coef,
+            np.inf,
+            MultiConstrainedLinearRegression.global_horizon_count,
+        )
 
         beta = self._verify_initial_beta(feature_count, initial_beta)
-            
+
         if self.nonnegative:
             min_coef_ = np.clip(min_coef_, 0, None)
-
 
         prev_beta = beta + 1
         hessian = self._calculate_hessian(X)
@@ -119,7 +128,7 @@ class MultiConstrainedLinearRegression(ConstrainedLinearRegression):
             if step > self.max_iter:
                 print("THE MODEL DID NOT CONVERGE")
                 break
-            
+
             step += 1
             prev_beta = beta.copy()
 
@@ -134,19 +143,24 @@ class MultiConstrainedLinearRegression(ConstrainedLinearRegression):
                             beta, i, min_coef_, max_coef_
                         )
                     )
-                
+
                 beta[i] = self._update_beta(
-                    beta, i, grad, hessian, loss_scale, min_coef[MultiConstrainedLinearRegression.global_horizon_count], max_coef[MultiConstrainedLinearRegression.global_horizon_count]
+                    beta,
+                    i,
+                    grad,
+                    hessian,
+                    loss_scale,
+                    min_coef[MultiConstrainedLinearRegression.global_horizon_count],
+                    max_coef[MultiConstrainedLinearRegression.global_horizon_count],
                 )
 
         self._set_coef(beta)
         self._set_intercept(X_offset, y_offset, X_scale)
-        
+
         # Update horizon_count for the next model
         MultiConstrainedLinearRegression.global_horizon_count += 1
 
         return self
-
 
     def _calc_distance_out_of_bounds(self, beta, i, min_coef_, max_coef_):
         min_bound = min_coef_[MultiConstrainedLinearRegression.global_horizon_count][i]

@@ -5,7 +5,7 @@ import numpy as np
 
 class ConstrainedLinearRegression(BaseConstrainedLinearRegression):
     """
-    This class defines a version of Linear Regression that includes constraints on the coefficients. It extends the 
+    This class defines a version of Linear Regression that includes constraints on the coefficients. It extends the
     BaseConstrainedLinearRegression class.
 
     Methods
@@ -35,15 +35,16 @@ class ConstrainedLinearRegression(BaseConstrainedLinearRegression):
     self : object
         Returns the instance itself.
     """
+
     def fit(self, X, y, min_coef=None, max_coef=None, initial_beta=None):
         X, y, X_offset, y_offset, X_scale = self.preprocess(X, y)
         feature_count = X.shape[-1]
         min_coef_ = self._verify_coef(feature_count, min_coef, -np.inf).flatten()
         max_coef_ = self._verify_coef(feature_count, max_coef, np.inf).flatten()
-        
+
         if self.nonnegative:
             min_coef_ = np.clip(min_coef_, 0, None)
-        
+
         beta = self._verify_initial_beta(feature_count, initial_beta)
 
         prev_beta = beta + 1
