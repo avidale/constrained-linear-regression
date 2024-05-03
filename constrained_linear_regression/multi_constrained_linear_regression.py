@@ -36,9 +36,6 @@ class MultiConstrainedLinearRegression(ConstrainedLinearRegression):
     fit_intercept : bool, default=True
         Option to fit intercept.
 
-    normalize : bool, default=False
-        Option to normalize the data.
-
     copy_X : bool, default=True
         Option to copy X.
 
@@ -74,7 +71,6 @@ class MultiConstrainedLinearRegression(ConstrainedLinearRegression):
     def __init__(
         self,
         fit_intercept=True,
-        normalize=False,
         copy_X=True,
         nonnegative=False,
         ridge=0,
@@ -85,15 +81,14 @@ class MultiConstrainedLinearRegression(ConstrainedLinearRegression):
         penalty_rate=0,
     ):
         super().__init__(
-            fit_intercept,
-            normalize,
-            copy_X,
-            nonnegative,
-            ridge,
-            lasso,
-            tol,
-            learning_rate,
-            max_iter,
+            fit_intercept=fit_intercept,
+            copy_X=copy_X,
+            nonnegative=nonnegative,
+            ridge=ridge,
+            lasso=lasso,
+            tol=tol,
+            learning_rate=learning_rate,
+            max_iter=max_iter,
         )
         self.penalty_rate = penalty_rate
 

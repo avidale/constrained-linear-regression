@@ -12,7 +12,6 @@ class BaseConstrainedLinearRegression(LinearModel, RegressorMixin):
     def __init__(
         self,
         fit_intercept=True,
-        normalize=False,
         copy_X=True,
         nonnegative=False,
         ridge=0,
@@ -22,7 +21,6 @@ class BaseConstrainedLinearRegression(LinearModel, RegressorMixin):
         max_iter=10000,
     ):
         self.fit_intercept = fit_intercept
-        self.normalize = normalize
         self.copy_X = copy_X
         self.nonnegative = nonnegative
         self.ridge = ridge
@@ -43,7 +41,6 @@ class BaseConstrainedLinearRegression(LinearModel, RegressorMixin):
             X,
             y,
             fit_intercept=self.fit_intercept,
-            normalize=self.normalize,
             copy=self.copy_X,
         )
 

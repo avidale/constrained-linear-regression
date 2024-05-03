@@ -17,12 +17,11 @@ class MatrixConstrainedLinearRegression(LinearModel, RegressorMixin):
     """
 
     def __init__(
-        self, A, B, fit_intercept=True, normalize=False, copy_X=True, tol=1e-15, lr=1.0
+        self, A, B, fit_intercept=True, copy_X=True, tol=1e-15, lr=1.0
     ):
         self.A = A
         self.B = B
         self.fit_intercept = fit_intercept
-        self.normalize = normalize
         self.copy_X = copy_X
         self.tol = tol
         self.lr = lr
@@ -39,7 +38,6 @@ class MatrixConstrainedLinearRegression(LinearModel, RegressorMixin):
             X,
             y,
             fit_intercept=self.fit_intercept,
-            normalize=self.normalize,
             copy=self.copy_X,
         )
         if initial_beta is not None:
